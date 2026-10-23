@@ -175,9 +175,9 @@
         const rows = window._buildExportRows({ 1: ['00:01:000'] }, 1);
         expect(rows[0][0]).toBe('Runner');
       });
-      it('header has correct lap columns', () => {
+      it('header has correct lap columns and Total Time', () => {
         const rows = window._buildExportRows({ 1: ['t1', 't2', 't3'] }, 1);
-        expect(rows[0]).toEqual(['Runner', 'Lap 1', 'Lap 2', 'Lap 3']);
+        expect(rows[0]).toEqual(['Runner', 'Lap 1', 'Lap 2', 'Lap 3', 'Total Time']);
       });
       it('runner row starts with "Runner N"', () => {
         const rows = window._buildExportRows({ 1: ['t1'] }, 1);
@@ -187,16 +187,61 @@
         const laps = { 1: ['t1', 't2'], 2: ['t1'] };
         const rows = window._buildExportRows(laps, 2);
         expect(rows[2][2]).toBe('');   // Runner 2, Lap 2 → empty
+        expect(rows[2][3]).toBe('t1');  // Runner 2, Total Time → t1
       });
       it('handles runner with zero laps', () => {
         const rows = window._buildExportRows({ 1: ['t1'] }, 2);
         expect(rows[2][0]).toBe('Runner 2');
         expect(rows[2][1]).toBe('');
+        expect(rows[2][2]).toBe('');   // Runner 2 Total Time empty
       });
-      it('returns just header when no laps recorded', () => {
+      it('returns header with Total Time when no laps recorded', () => {
         const rows = window._buildExportRows({}, 3);
         expect(rows).toHaveLength(4);   // header + 3 empty runner rows
-        expect(rows[0]).toEqual(['Runner']);
+        expect(rows[0]).toEqual(['Runner', 'Total Time']);
+      });
+    });
+
+    describe('buildExportRows — total time column', () => {
+      it('shows the final lap as Total Time for finished runner', () => {
+        const laps = { 1: ['00:01:000', '00:02:500', '00:04:123'] };
+        const rows = window._buildExportRows(laps, 1);
+        // Header: ['Runner', 'Lap 1', 'Lap 2', 'Lap 3', 'Total Time']
+        expect(rows[1][4]).toBe('00:04:123');
+      });
+      it('computes correct Total Time when runners have different lap counts', () => {
+        const laps = {
+          1: ['00:01:000', '00:02:000', '00:03:000'],
+          2: ['00:01:200']
+        };
+        const rows = window._buildExportRows(laps, 2);
+        // Runner 1 total time is Lap 3
+        expect(rows[1][4]).toBe('00:03:000');
+        // Runner 2 total time is Lap 1
+        expect(rows[2][4]).toBe('00:01:200');
+      });
+    });
+
+    describe('buildExportRows — runner names', () => {
+      it('uses custom runner name when provided', () => {
+        const laps = { 1: ['00:01:000'] };
+        const names = { 1: 'Usain Bolt' };
+        const rows = window._buildExportRows(laps, 1, names);
+        expect(rows[1][0]).toBe('1 - Usain Bolt');
+      });
+      it('falls back to "Runner N" when name is empty or whitespace', () => {
+        const laps = { 1: ['00:01:000'], 2: ['00:02:000'] };
+        const names = { 1: '', 2: '   ' };
+        const rows = window._buildExportRows(laps, 2, names);
+        expect(rows[1][0]).toBe('Runner 1');
+        expect(rows[2][0]).toBe('Runner 2');
+      });
+      it('handles mix of named and unnamed runners', () => {
+        const laps = { 1: ['00:01:000'], 2: ['00:02:000'] };
+        const names = { 2: 'Mo Farah' };
+        const rows = window._buildExportRows(laps, 2, names);
+        expect(rows[1][0]).toBe('Runner 1');
+        expect(rows[2][0]).toBe('2 - Mo Farah');
       });
     });
 
@@ -211,7 +256,7 @@
       it('handles 13 laps per runner (full 5 k race)', () => {
         const times = Array.from({ length: 13 }, (_, i) => `00:0${Math.floor(i/10)}:${i}00`);
         const rows = window._buildExportRows({ 1: times }, 1);
-        expect(rows[0]).toHaveLength(14);  // Runner + 13 laps
+        expect(rows[0]).toHaveLength(15);  // Runner + 13 laps + Total Time
       });
     });
 

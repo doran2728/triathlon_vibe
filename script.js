@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let elapsed = 0;
   let totalTags = 0;
   const laps = {};
+  const runnerNames = {};
 
   const STORAGE_KEY = 'lapCounterState';
 
@@ -26,14 +27,26 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const formatTime = window._formatTime;
 
-  window._buildExportRows = function buildExportRows(lapsObj, total) {
+  window._buildExportRows = function buildExportRows(lapsObj, total, namesObj = {}) {
     const maxLaps = total === 0 ? 0
       : Math.max(0, ...Array.from({ length: total }, (_, i) => (lapsObj[i + 1] || []).length));
-    const header = ['Runner', ...Array.from({ length: maxLaps }, (_, i) => `Lap ${i + 1}`)];
+    const header = [
+      'Runner',
+      ...Array.from({ length: maxLaps }, (_, i) => `Lap ${i + 1}`),
+      'Total Time'
+    ];
     const rows = [header];
     for (let i = 1; i <= total; i++) {
       const rl = lapsObj[i] || [];
-      rows.push([`Runner ${i}`, ...rl, ...Array(maxLaps - rl.length).fill('')]);
+      const custom = namesObj && namesObj[i] && namesObj[i].trim();
+      const label = custom ? `${i} - ${custom}` : `Runner ${i}`;
+      const totalTime = rl.length > 0 ? rl[rl.length - 1] : '';
+      rows.push([
+        label,
+        ...rl,
+        ...Array(maxLaps - rl.length).fill(''),
+        totalTime
+      ]);
     }
     return rows;
   };
@@ -48,12 +61,23 @@ document.addEventListener('DOMContentLoaded', () => {
         elapsed,
         totalTags,
         laps: JSON.parse(JSON.stringify(laps)),
+        names: JSON.parse(JSON.stringify(runnerNames)),
         savedAt: Date.now(),
       }));
     } catch (e) { /* storage full — silently skip */ }
   };
 
-  const clearState = () => localStorage.removeItem(STORAGE_KEY);
+  const clearState = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        elapsed: 0,
+        totalTags,
+        laps: {},
+        names: JSON.parse(JSON.stringify(runnerNames)),
+        savedAt: Date.now(),
+      }));
+    } catch (e) {}
+  };
 
   /* Auto-save every 5 s while running */
   let autoSaveId = null;
@@ -91,9 +115,22 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = num;
     btn.id = `lapBtn-${num}`;
     btn.addEventListener('click', () => {
+      if (!intervalId && elapsed === 0) return;
       if (!laps[num]) laps[num] = [];
       laps[num].push(formatTime(elapsed));
       renderLapList(num);
+      saveState();
+    });
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'runner-name-input';
+    nameInput.placeholder = `Runner ${num}`;
+    nameInput.value = runnerNames[num] || '';
+    nameInput.maxLength = 24;
+    nameInput.title = `Name for Runner #${num}`;
+    nameInput.addEventListener('input', () => {
+      runnerNames[num] = nameInput.value;
       saveState();
     });
 
@@ -116,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     wrapper.appendChild(btn);
+    wrapper.appendChild(nameInput);
     wrapper.appendChild(listDiv);
     wrapper.appendChild(undoBtn);
     return wrapper;
@@ -132,6 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
     addBtn.title = 'Add a runner';
     addBtn.addEventListener('click', () => {
       totalTags += 1;
+      tagCountInput.value = totalTags;
+      if (totalTags > parseInt(tagCountInput.max, 10)) {
+        tagCountInput.max = totalTags;
+      }
       const card = createTagCard(totalTags);
       lapButtonsContainer.insertBefore(card, addCard);
       addCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -177,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tagCountInput.disabled = true;
     downloadBtn.classList.remove('show');
+    stopBtn.hidden = false;
 
     intervalId = setInterval(tick, 10);
     startAutoSave();
@@ -207,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ════════════════════════════════════════ */
 
   const exportToExcel = () => {
-    const rows = window._buildExportRows(laps, totalTags);
+    const rows = window._buildExportRows(laps, totalTags, runnerNames);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = rows[0].map((_, ci) => ({
       wch: Math.max(...rows.map(r => String(r[ci] ?? '').length)) + 2,
@@ -216,6 +259,28 @@ document.addEventListener('DOMContentLoaded', () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Race Results');
     XLSX.writeFile(wb, `race_results_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.xlsx`);
   };
+
+  /* ════════════════════════════════════════
+     INITIALIZATION
+  ════════════════════════════════════════ */
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.names) Object.assign(runnerNames, parsed.names);
+    }
+  } catch (e) {}
+
+  const initialCount = Math.max(1, parseInt(tagCountInput.value, 10) || 20);
+  createLapButtons(initialCount);
+
+  tagCountInput.addEventListener('input', () => {
+    if (!intervalId && elapsed === 0) {
+      const count = Math.max(1, parseInt(tagCountInput.value, 10) || 1);
+      createLapButtons(count);
+    }
+  });
 
   startBtn.addEventListener('click', startFresh);
   stopBtn.addEventListener('click', togglePause);
