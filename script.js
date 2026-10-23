@@ -9,7 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const targetLapsInput = document.getElementById('targetLaps');
 
   let intervalId = null;
-  let elapsed = 0;
+  let startTime = null;         // Timestamp when current running period started
+  let accumulated = 0;          // Accumulated ms from previous running segments
+  let isRunning = false;        // True while stopwatch is actively ticking
+  let elapsed = 0;              // Current display elapsed time in ms
+
   let totalTags = 0;
   let targetLaps = 12.5;
   const laps = {};
@@ -34,9 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
   ════════════════════════════════════════ */
 
   window._formatTime = function formatTime(ms) {
-    const m   = Math.floor(ms / 60000).toString().padStart(2, '0');
-    const s   = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
-    const mil = (ms % 1000).toString().padStart(3, '0');
+    const safeMs = Math.max(0, ms);
+    const m   = Math.floor(safeMs / 60000).toString().padStart(2, '0');
+    const s   = Math.floor((safeMs % 60000) / 1000).toString().padStart(2, '0');
+    const mil = (safeMs % 1000).toString().padStart(3, '0');
     return `${m}:${s}:${mil}`;
   };
   const formatTime = window._formatTime;
@@ -72,6 +77,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ════════════════════════════════════════
+     WALL-CLOCK TIMING ENGINE
+     (Never drifts or freezes in background tabs)
+  ════════════════════════════════════════ */
+
+  const getElapsed = () => {
+    if (isRunning && startTime) {
+      return accumulated + (Date.now() - startTime);
+    }
+    return accumulated;
+  };
+
+  /* ════════════════════════════════════════
      RACE DISTANCE & LAP HELPERS
   ════════════════════════════════════════ */
 
@@ -85,19 +102,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const getMaxSplits = () => {
     if (targetLaps % 1 !== 0) {
-      return Math.ceil(targetLaps); // 12.5 laps requires 13 splits (200m + 12 full)
+      return Math.ceil(targetLaps);
     }
     return targetLaps;
   };
 
   /* ════════════════════════════════════════
-     PERSISTENCE — localStorage (silent)
+     PERSISTENCE — localStorage
   ════════════════════════════════════════ */
 
   const saveState = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        elapsed,
+        startTime: isRunning ? startTime : null,
+        accumulated: isRunning ? accumulated : getElapsed(),
+        isRunning,
         totalTags,
         targetLaps,
         laps: JSON.parse(JSON.stringify(laps)),
@@ -110,7 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearState = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        elapsed: 0,
+        startTime: null,
+        accumulated: 0,
+        isRunning: false,
         totalTags,
         targetLaps,
         laps: {},
@@ -120,11 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   };
 
-  /* Auto-save every 5 s while running */
+  /* Auto-save every 4 seconds */
   let autoSaveId = null;
   const startAutoSave = () => {
     clearInterval(autoSaveId);
-    autoSaveId = setInterval(saveState, 5000);
+    autoSaveId = setInterval(saveState, 4000);
   };
   const stopAutoSave = () => clearInterval(autoSaveId);
 
@@ -194,15 +215,16 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = num;
     btn.id = `lapBtn-${num}`;
     btn.addEventListener('click', () => {
-      if (!intervalId && elapsed === 0) return;
+      const curElapsed = getElapsed();
+      if (!isRunning && curElapsed === 0) return;
       const count = (laps[num] || []).length;
       if (count >= getMaxSplits()) {
         vibrate([25, 30, 25]);
-        return; // Protected: athlete is finished
+        return;
       }
       vibrate(45);
       if (!laps[num]) laps[num] = [];
-      laps[num].push(formatTime(elapsed));
+      laps[num].push(formatTime(curElapsed));
       renderLapList(num);
       saveState();
     });
@@ -285,13 +307,21 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ════════════════════════════════════════
-     TIMER
+     TIMER TICK & VISIBILITY SYNC
   ════════════════════════════════════════ */
 
   const tick = () => {
-    elapsed += 10;
+    elapsed = getElapsed();
     counterEl.textContent = formatTime(elapsed);
   };
+
+  // Immediate catch-up whenever user switches back to the tab
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      elapsed = getElapsed();
+      counterEl.textContent = formatTime(elapsed);
+    }
+  });
 
   const startFresh = () => {
     vibrate(60);
@@ -306,8 +336,12 @@ document.addEventListener('DOMContentLoaded', () => {
     stopAutoSave();
     clearState();
 
+    accumulated = 0;
+    startTime = Date.now();
+    isRunning = true;
     elapsed = 0;
-    counterEl.textContent = formatTime(elapsed);
+    counterEl.textContent = formatTime(0);
+
     Object.keys(laps).forEach((k) => delete laps[k]);
     createLapButtons(count);
     lapsSection.hidden = false;
@@ -317,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadBtn.classList.remove('show');
     stopBtn.hidden = false;
 
-    intervalId = setInterval(tick, 10);
+    intervalId = setInterval(tick, 20);
     startAutoSave();
 
     startBtn.textContent = '↺ Restart';
@@ -327,16 +361,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const togglePause = () => {
     vibrate(45);
-    if (intervalId) {
+    if (isRunning) {
+      // Running → Pause
+      accumulated = getElapsed();
+      isRunning = false;
+      startTime = null;
       clearInterval(intervalId);
       intervalId = null;
       stopAutoSave();
       saveState();
+
+      elapsed = accumulated;
+      counterEl.textContent = formatTime(elapsed);
       stopBtn.textContent = '▶ Resume';
       if (elapsed > 0) downloadBtn.classList.add('show');
     } else {
-      intervalId = setInterval(tick, 10);
+      // Paused → Resume
+      startTime = Date.now();
+      isRunning = true;
+      intervalId = setInterval(tick, 20);
       startAutoSave();
+      saveState();
+
       stopBtn.textContent = '■ Pause';
       downloadBtn.classList.remove('show');
     }
@@ -358,20 +404,27 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ════════════════════════════════════════
-     INITIALIZATION
+     INITIALIZATION & SESSION RESTORE
   ════════════════════════════════════════ */
 
+  let savedState = null;
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.names) Object.assign(runnerNames, parsed.names);
-      if (parsed.targetLaps) {
-        targetLaps = parsed.targetLaps;
-        if (targetLapsInput) targetLapsInput.value = targetLaps;
-      }
-    }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) savedState = JSON.parse(raw);
   } catch (e) {}
+
+  if (savedState) {
+    if (savedState.names) Object.assign(runnerNames, savedState.names);
+    if (savedState.laps)  Object.assign(laps, savedState.laps);
+    if (savedState.targetLaps) {
+      targetLaps = savedState.targetLaps;
+      if (targetLapsInput) targetLapsInput.value = targetLaps;
+    }
+    if (savedState.totalTags) {
+      totalTags = savedState.totalTags;
+      if (tagCountInput) tagCountInput.value = totalTags;
+    }
+  }
 
   if (targetLapsInput) {
     targetLaps = Math.max(0.5, parseFloat(targetLapsInput.value) || 12.5);
@@ -380,8 +433,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const initialCount = Math.max(1, parseInt(tagCountInput.value, 10) || 20);
   createLapButtons(initialCount);
 
+  // Restore active or paused race if present
+  if (savedState && (savedState.isRunning || (savedState.accumulated > 0))) {
+    accumulated = savedState.accumulated || 0;
+    isRunning = !!savedState.isRunning;
+
+    if (isRunning && savedState.startTime) {
+      startTime = savedState.startTime;
+      intervalId = setInterval(tick, 20);
+      startAutoSave();
+      stopBtn.textContent = '■ Pause';
+      downloadBtn.classList.remove('show');
+    } else {
+      isRunning = false;
+      startTime = null;
+      stopBtn.textContent = '▶ Resume';
+      if (accumulated > 0) downloadBtn.classList.add('show');
+    }
+
+    elapsed = getElapsed();
+    counterEl.textContent = formatTime(elapsed);
+
+    startBtn.textContent = '↺ Restart';
+    startBtn.classList.add('restart');
+    stopBtn.hidden = false;
+    tagCountInput.disabled = true;
+    targetLapsInput.disabled = true;
+  }
+
   tagCountInput.addEventListener('input', () => {
-    if (!intervalId && elapsed === 0) {
+    if (!isRunning && getElapsed() === 0) {
       const count = Math.max(1, parseInt(tagCountInput.value, 10) || 1);
       createLapButtons(count);
     }
