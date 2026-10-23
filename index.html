@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lap Counter</title>
+  <meta name="description" content="A premium lap counter with mm:ss:ms timer and 20 numbered lap tags." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main class="container">
+
+    <h1>Lap Counter</h1>
+    <div class="counter-display" id="counter">00:00:000</div>
+
+    <div class="tag-setup">
+      <label for="tagCount">Number of runners</label>
+      <input type="number" id="tagCount" min="1" max="100" value="20" />
+    </div>
+
+    <div class="controls">
+      <button class="btn start-btn" id="startBtn">▶ Start</button>
+      <button class="btn stop-btn"  id="stopBtn">■ Stop</button>
+      <button class="btn download-btn" id="downloadBtn">↓ Download Excel</button>
+    </div>
+
+    <section class="laps" id="lapsSection" hidden>
+      <div class="lap-buttons" id="lapButtons"></div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lap Counter — Test Suite</title>
+  <style>
+    :root {
+      --pass: hsl(145,65%,45%);
+      --fail: hsl(10,80%,55%);
+      --bg: hsl(224,20%,9%);
+      --card: hsla(224,18%,14%,0.8);
+      --text: hsl(0,0%,92%);
+      --muted: hsl(0,0%,55%);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.4rem; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .summary {
+      display: flex; gap: 1.5rem; margin-bottom: 1.5rem;
+      font-size: 1rem; font-weight: 600;
+    }
+    .summary .pass { color: var(--pass); }
+    .summary .fail { color: var(--fail); }
+    .suite {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1rem;
+      border: 1px solid hsla(258,50%,60%,0.12);
+    }
+    .suite h2 { font-size: 1rem; margin-bottom: 0.75rem; color: hsl(258,60%,75%); }
+    .test {
+      display: flex; align-items: flex-start; gap: 0.6rem;
+      padding: 0.3rem 0; border-bottom: 1px solid hsla(0,0%,100%,0.05);
+      font-size: 0.88rem;
+    }
+    .test:last-child { border-bottom: none; }
+    .badge {
+      flex-shrink: 0;
+      font-size: 0.7rem; font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 99px;
+      margin-top: 2px;
+    }
+    .badge.pass { background: hsla(145,65%,45%,0.2); color: var(--pass); }
+    .badge.fail { background: hsla(10,80%,55%,0.2);  color: var(--fail); }
+    .detail { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Lap Counter — Test Suite</h1>
+  <p class="subtitle">In-browser unit tests for core logic</p>
+  <div class="summary" id="summary"></div>
+  <div id="results"></div>
+
+  <!-- Load the app script so window._formatTime and window._buildExportRows are available -->
+  <!-- We stub the DOM so script.js doesn't crash outside the app page -->
+  <script>
+    /* ── Minimal DOM stubs so script.js doesn't throw ── */
+    const _stub = () => ({
+      addEventListener: () => {},
+      classList: { add: () => {}, remove: () => {} },
+      querySelector: () => ({ textContent: '' }),
+    });
+    const _origGetEl = document.getElementById.bind(document);
+    document.getElementById = (id) => _origGetEl(id) || {
+      addEventListener: () => {},
+      classList: { add: () => {}, remove: () => {} },
+      querySelector: () => ({ textContent: '' }),
+      hidden: true,
+    };
+
+    /* localStorage stub (test page shares origin, but we don't want side-effects) */
+    const _fakeStorage = {};
+    const _ls = {
+      getItem: k => _fakeStorage[k] ?? null,
+      setItem: (k, v) => { _fakeStorage[k] = v; },
+      removeItem: k => { delete _fakeStorage[k]; },
+    };
+    Object.defineProperty(window, 'localStorage', { value: _ls });
+
+    /* XLSX stub */
+    window.XLSX = {
+      utils: { aoa_to_sheet: () => ({}), book_new: () => ({}), book_append_sheet: () => {} },
+      writeFile: () => {},
+    };
+  </script>
+  <script src="script.js"></script>
+  <script>
+    /* ══════════════════════════════════════
+       TINY TEST RUNNER
+    ══════════════════════════════════════ */
+    const suites  = [];
+    let currentSuite = null;
+
+    function describe(name, fn) {
+      currentSuite = { name, tests: [] };
+      suites.push(currentSuite);
+      fn();
+    }
+
+    function it(desc, fn) {
+      let passed = false, error = '';
+      try { fn(); passed = true; }
+      catch (e) { error = e.message || String(e); }
+      currentSuite.tests.push({ desc, passed, error });
+    }
+
+    function expect(val) {
+      return {
+        toBe(expected) {
+          if (val !== expected)
+            throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(val)}`);
+        },
+        toEqual(expected) {
+          const a = JSON.stringify(val), b = JSON.stringify(expected);
+          if (a !== b) throw new Error(`Expected ${b}, got ${a}`);
+        },
+        toHaveLength(len) {
+          if ((val?.length ?? -1) !== len)
+            throw new Error(`Expected length ${len}, got ${val?.length}`);
+        },
+        toContain(item) {
+          if (!val?.includes(item))
+            throw new Error(`Expected array to contain ${JSON.stringify(item)}`);
+        },
+        toBeTruthy() {
+          if (!val) throw new Error(`Expected truthy, got ${JSON.stringify(val)}`);
+        },
+        toBeFalsy() {
+          if (val)  throw new Error(`Expected falsy, got ${JSON.stringify(val)}`);
+        },
+      };
+    }
+
+    /* ══════════════════════════════════════
+       TESTS
+    ══════════════════════════════════════ */
+
+    describe('formatTime', () => {
+      it('formats 0 ms correctly', () => {
+        expect(window._formatTime(0)).toBe('00:00:000');
+      });
+      it('formats 1000 ms as 1 second', () => {
+        expect(window._formatTime(1000)).toBe('00:01:000');
+      });
+      it('formats 60000 ms as 1 minute', () => {
+        expect(window._formatTime(60000)).toBe('01:00:000');
+      });
+      it('formats 61234 ms correctly', () => {
+        expect(window._formatTime(61234)).toBe('01:01:234');
+      });
+      it('formats 3599999 ms (59:59:999)', () => {
+        expect(window._formatTime(3599999)).toBe('59:59:999');
+      });
+      it('pads single-digit minutes and seconds', () => {
+        expect(window._formatTime(5050)).toBe('00:05:050');
+      });
+    });
+
+    describe('buildExportRows — structure', () => {
+      it('returns header row + one row per runner', () => {
+        const laps = { 1: ['00:01:000', '00:02:000'], 2: ['00:01:500'] };
+        const rows = window._buildExportRows(laps, 2);
+        expect(rows).toHaveLength(3);          // header + 2 runners
+      });
+      it('header starts with "Runner"', () => {
+        const rows = window._buildExportRows({ 1: ['00:01:000'] }, 1);
+        expect(rows[0][0]).toBe('Runner');
+      });
+      it('header has correct lap columns', () => {
+        const rows = window._buildExportRows({ 1: ['t1', 't2', 't3'] }, 1);
+        expect(rows[0]).toEqual(['Runner', 'Lap 1', 'Lap 2', 'Lap 3']);
+      });
+      it('runner row starts with "Runner N"', () => {
+        const rows = window._buildExportRows({ 1: ['t1'] }, 1);
+        expect(rows[1][0]).toBe('Runner 1');
+      });
+      it('pads runners with fewer laps with empty strings', () => {
+        const laps = { 1: ['t1', 't2'], 2: ['t1'] };
+        const rows = window._buildExportRows(laps, 2);
+        expect(rows[2][2]).toBe('');   // Runner 2, Lap 2 → empty
+      });
+      it('handles runner with zero laps', () => {
+        const rows = window._buildExportRows({ 1: ['t1'] }, 2);
+        expect(rows[2][0]).toBe('Runner 2');
+        expect(rows[2][1]).toBe('');
+      });
+      it('returns just header when no laps recorded', () => {
+        const rows = window._buildExportRows({}, 3);
+        expect(rows).toHaveLength(4);   // header + 3 empty runner rows
+        expect(rows[0]).toEqual(['Runner']);
+      });
+    });
+
+    describe('buildExportRows — lap data integrity', () => {
+      it('preserves lap times in order', () => {
+        const times = ['00:01:000', '00:02:500', '00:04:123'];
+        const rows = window._buildExportRows({ 1: times }, 1);
+        expect(rows[1][1]).toBe('00:01:000');
+        expect(rows[1][2]).toBe('00:02:500');
+        expect(rows[1][3]).toBe('00:04:123');
+      });
+      it('handles 13 laps per runner (full 5 k race)', () => {
+        const times = Array.from({ length: 13 }, (_, i) => `00:0${Math.floor(i/10)}:${i}00`);
+        const rows = window._buildExportRows({ 1: times }, 1);
+        expect(rows[0]).toHaveLength(14);  // Runner + 13 laps
+      });
+    });
+
+    /* ══════════════════════════════════════
+       RENDER RESULTS
+    ══════════════════════════════════════ */
+
+    let totalPass = 0, totalFail = 0;
+    const resultsEl = document.getElementById('results');
+
+    suites.forEach(suite => {
+      const suiteEl = document.createElement('div');
+      suiteEl.className = 'suite';
+      suiteEl.innerHTML = `<h2>${suite.name}</h2>`;
+
+      suite.tests.forEach(t => {
+        if (t.passed) totalPass++; else totalFail++;
+        const div = document.createElement('div');
+        div.className = 'test';
+        div.innerHTML = `
+          <span class="badge ${t.passed ? 'pass' : 'fail'}">${t.passed ? 'PASS' : 'FAIL'}</span>
+          <div>
+            ${t.desc}
+            ${!t.passed ? `<div class="detail">↳ ${t.error}</div>` : ''}
+          </div>`;
+        suiteEl.appendChild(div);
+      });
+      resultsEl.appendChild(suiteEl);
+    });
+
+    document.getElementById('summary').innerHTML = `
+      <span class="pass">✓ ${totalPass} passed</span>
+      <span class="fail">${totalFail > 0 ? `✗ ${totalFail} failed` : '✓ 0 failed'}</span>
+      <span style="color:var(--muted)">${totalPass + totalFail} total</span>`;
+  </script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+/* ── Design tokens ── */
+:root {
+  --bg-deep:    hsl(224, 20%, 8%);
+  --bg-card:    hsla(224, 18%, 14%, 0.75);
+  --accent:     hsl(258, 80%, 62%);
+  --accent-alt: hsl(300, 65%, 58%);
+  --danger:     hsl(12, 80%, 55%);
+  --danger-alt: hsl(24, 72%, 50%);
+  --text:       hsl(0, 0%, 94%);
+  --text-muted: hsl(0, 0%, 55%);
+  --radius:     14px;
+  --ease:       0.25s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Reset / base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse at 20% 20%, hsla(258,80%,40%,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, hsla(300,65%,40%,0.14) 0%, transparent 60%),
+    linear-gradient(160deg, hsl(224,22%,9%) 0%, hsl(228,18%,7%) 100%);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+/* ── Card ── */
+.container {
+  background: var(--bg-card);
+  border: 1px solid hsla(258,60%,70%,0.12);
+  border-radius: calc(var(--radius) * 2);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.55), 0 0 0 1px hsla(258,60%,60%,0.08);
+  padding: 2.5rem 2rem;
+  width: min(980px, 96vw);
+  text-align: center;
+}
+
+/* ── Title ── */
+h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Timer display ── */
+.counter-display {
+  font-family: 'Roboto Mono', monospace;
+  font-size: clamp(2.4rem, 7vw, 4rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  background: hsla(258,50%,30%,0.25);
+  border: 1px solid hsla(258,60%,70%,0.15);
+  border-radius: var(--radius);
+  padding: 0.6rem 1.4rem;
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  min-width: 14rem;
+  text-align: center;
+}
+
+/* ── Tag count setup ── */
+.tag-setup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.2rem;
+}
+.tag-setup label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.tag-setup input[type="number"] {
+  width: 72px;
+  padding: 0.45rem 0.6rem;
+  background: hsla(224,18%,18%,0.8);
+  border: 1px solid hsla(258,60%,70%,0.25);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'Roboto Mono', monospace;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color var(--ease);
+  -moz-appearance: textfield;
+}
+.tag-setup input[type="number"]::-webkit-inner-spin-button,
+.tag-setup input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+.tag-setup input[type="number"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px hsla(258,80%,60%,0.2);
+}
+.tag-setup input[type="number"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Controls row ── */
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+/* ── Shared button ── */
+.btn {
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.7rem 1.8rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  transition: transform var(--ease), box-shadow var(--ease), filter var(--ease);
+}
+.btn:hover  { transform: translateY(-3px); filter: brightness(1.1); }
+.btn:active { transform: translateY(0);    filter: brightness(0.9); }
+
+.start-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+  box-shadow: 0 4px 18px hsla(258,80%,55%,0.4);
+}
+.stop-btn {
+  background: linear-gradient(135deg, var(--danger), var(--danger-alt));
+  box-shadow: 0 4px 18px hsla(12,80%,45%,0.35);
+}
+.download-btn {
+  background: linear-gradient(135deg, hsl(145,65%,38%), hsl(160,60%,34%));
+  box-shadow: 0 4px 18px hsla(145,65%,30%,0.4);
+  display: none;           /* hidden by default */
+  align-items: center;
+  gap: 0.4rem;
+}
+.download-btn.show {
+  display: flex;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Start → Restart visual shift */
+.start-btn.restart {
+  background: linear-gradient(135deg, hsl(198,80%,45%), hsl(220,75%,52%));
+  box-shadow: 0 4px 18px hsla(198,80%,40%,0.4);
+}
+
+/* ── Lap grid — 5 columns, compact ── */
+.lap-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.6rem;
+}
+
+/* ── Individual lap tag card ── */
+.lap-item {
+  background: hsla(224,18%,18%,0.65);
+  border: 1px solid hsla(258,50%,60%,0.12);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;     /* anchor for undo button */
+  transition: box-shadow var(--ease);
+}
+.lap-item:hover { box-shadow: 0 0 0 2px hsla(258,80%,65%,0.3); }
+
+/* ── Numbered lap button ── */
+.lap-btn {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 0.95rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+  box-shadow: 0 2px 10px hsla(258,80%,50%,0.35);
+  flex-shrink: 0;
+}
+
+/* ── Lap time list — shows ~2 rows, auto-scrolls ── */
+.lap-list {
+  width: 100%;
+  max-height: 3rem;       /* ~2 lap rows visible */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  scrollbar-width: thin;
+  scrollbar-color: hsla(258,60%,60%,0.4) transparent;
+}
+.lap-list::-webkit-scrollbar { width: 4px; }
+.lap-list::-webkit-scrollbar-thumb {
+  background: hsla(258,60%,60%,0.4);
+  border-radius: 99px;
+}
+.lap-list span {
+  display: block;
+  background: hsla(258,40%,20%,0.5);
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.68rem;
+  color: hsl(258,60%,85%);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+/* ── + Add runner card ── */
+.add-card {
+  background: transparent;
+  border: 2px dashed hsla(258,60%,65%,0.35);
+  justify-content: center;
+  cursor: default;
+  transition: border-color var(--ease), background var(--ease);
+}
+.add-card:hover {
+  border-color: hsla(258,80%,70%,0.7);
+  background: hsla(258,40%,20%,0.2);
+  box-shadow: none;
+}
+.add-btn {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: hsla(258,70%,75%,0.85);
+  border: 2px solid hsla(258,60%,65%,0.5);
+  transition: background var(--ease), color var(--ease), border-color var(--ease), transform var(--ease);
+}
+.add-btn:hover {
+  background: hsla(258,70%,55%,0.9);
+  color: #fff;
+  border-color: transparent;
+  transform: scale(1.12);
+  filter: none;
+}
+
+/* ── ↩ Undo last lap button — top-right corner ── */
+.undo-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 0.7rem;
+  line-height: 1;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: hsla(12,70%,65%,0.75);
+  border: 1.5px solid hsla(12,60%,55%,0.35);
+  transition: background var(--ease), color var(--ease),
+              border-color var(--ease), transform var(--ease), opacity var(--ease);
+}
+.undo-btn:hover:not(:disabled) {
+  background: hsla(12,80%,50%,0.85);
+  color: #fff;
+  border-color: transparent;
+  transform: scale(1.15);
+  filter: none;
+}
+.undo-btn:disabled {
+  opacity: 0.18;
+  cursor: not-allowed;
+  transform: none;
+}
