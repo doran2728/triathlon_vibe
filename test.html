@@ -175,9 +175,9 @@
         const rows = window._buildExportRows({ 1: ['00:01:000'] }, 1);
         expect(rows[0][0]).toBe('Runner');
       });
-      it('header has correct lap columns and Total Time', () => {
+      it('header has correct distance columns and Total Time for 5k (12.5 laps)', () => {
         const rows = window._buildExportRows({ 1: ['t1', 't2', 't3'] }, 1);
-        expect(rows[0]).toEqual(['Runner', 'Lap 1', 'Lap 2', 'Lap 3', 'Total Time']);
+        expect(rows[0]).toEqual(['Runner', '200m', '600m', '1000m', 'Total Time']);
       });
       it('runner row starts with "Runner N"', () => {
         const rows = window._buildExportRows({ 1: ['t1'] }, 1);
@@ -206,7 +206,7 @@
       it('shows the final lap as Total Time for finished runner', () => {
         const laps = { 1: ['00:01:000', '00:02:500', '00:04:123'] };
         const rows = window._buildExportRows(laps, 1);
-        // Header: ['Runner', 'Lap 1', 'Lap 2', 'Lap 3', 'Total Time']
+        // Header: ['Runner', '200m', '600m', '1000m', 'Total Time']
         expect(rows[1][4]).toBe('00:04:123');
       });
       it('computes correct Total Time when runners have different lap counts', () => {
@@ -219,6 +219,17 @@
         expect(rows[1][4]).toBe('00:03:000');
         // Runner 2 total time is Lap 1
         expect(rows[2][4]).toBe('00:01:200');
+      });
+    });
+
+    describe('buildExportRows — 5K 12.5 laps distance milestones', () => {
+      it('labels full 5K race from 200m up to 5000m (Finish)', () => {
+        const times = Array.from({ length: 13 }, (_, i) => `00:0${i}:000`);
+        const rows = window._buildExportRows({ 1: times }, 1, {}, 12.5);
+        expect(rows[0][1]).toBe('200m');
+        expect(rows[0][2]).toBe('600m');
+        expect(rows[0][13]).toBe('5000m (Finish)');
+        expect(rows[0][14]).toBe('Total Time');
       });
     });
 

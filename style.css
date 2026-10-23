@@ -93,42 +93,48 @@ h1 {
   text-align: center;
 }
 
-/* ── Tag count setup ── */
+/* ── Race Setup (Runners + Target Laps) ── */
 .tag-setup {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 1.5rem;
   margin-bottom: 1.2rem;
+  flex-wrap: wrap;
 }
-.tag-setup label {
-  font-size: 0.95rem;
+.setup-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.setup-field label {
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
-.tag-setup input[type="number"] {
-  width: 72px;
-  padding: 0.45rem 0.6rem;
+.setup-field input[type="number"] {
+  width: 68px;
+  padding: 0.4rem 0.5rem;
   background: hsla(224,18%,18%,0.8);
   border: 1px solid hsla(258,60%,70%,0.25);
   border-radius: var(--radius);
   color: var(--text);
   font-family: 'Roboto Mono', monospace;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   text-align: center;
   outline: none;
   transition: border-color var(--ease);
   -moz-appearance: textfield;
 }
-.tag-setup input[type="number"]::-webkit-inner-spin-button,
-.tag-setup input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
-.tag-setup input[type="number"]:focus {
+.setup-field input[type="number"]::-webkit-inner-spin-button,
+.setup-field input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+.setup-field input[type="number"]:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px hsla(258,80%,60%,0.2);
 }
-.tag-setup input[type="number"]:disabled {
+.setup-field input[type="number"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -207,10 +213,66 @@ h1 {
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
-  position: relative;     /* anchor for undo button */
-  transition: box-shadow var(--ease);
+  position: relative;     /* anchor for undo button & lap badge */
+  transition: box-shadow var(--ease), border-color var(--ease);
 }
 .lap-item:hover { box-shadow: 0 0 0 2px hsla(258,80%,65%,0.3); }
+
+/* Card bell lap state */
+.lap-item.is-bell {
+  border-color: hsla(45, 95%, 55%, 0.45);
+  box-shadow: 0 0 10px hsla(45, 90%, 50%, 0.18);
+}
+
+/* Card finished state */
+.lap-item.is-finished {
+  border-color: hsla(145, 70%, 45%, 0.5);
+  box-shadow: 0 0 12px hsla(145, 65%, 40%, 0.22);
+}
+.lap-item.is-finished .lap-btn {
+  background: linear-gradient(135deg, hsl(145, 65%, 40%), hsl(160, 60%, 35%));
+  box-shadow: 0 2px 10px hsla(145, 65%, 35%, 0.4);
+}
+
+/* ── Lap Progress Badge (Top-left corner) ── */
+.lap-badge {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 6px;
+  color: hsla(0, 0%, 100%, 0.5);
+  background: hsla(224, 20%, 12%, 0.65);
+  border: 1px solid hsla(258, 40%, 60%, 0.15);
+  letter-spacing: -0.02em;
+  transition: all var(--ease);
+  pointer-events: none;
+}
+
+/* Bell lap alert: 1 lap to go */
+.lap-badge.bell {
+  color: hsl(45, 100%, 70%);
+  background: hsla(45, 100%, 45%, 0.18);
+  border-color: hsla(45, 100%, 55%, 0.55);
+  box-shadow: 0 0 8px hsla(45, 100%, 50%, 0.25);
+  animation: bellPulse 1.3s infinite ease-in-out;
+}
+
+@keyframes bellPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
+/* Finished state */
+.lap-badge.finished {
+  color: hsl(145, 80%, 75%);
+  background: hsla(145, 70%, 35%, 0.28);
+  border-color: hsla(145, 70%, 50%, 0.65);
+  box-shadow: 0 0 8px hsla(145, 70%, 45%, 0.3);
+}
 
 /* ── Numbered lap button ── */
 .lap-btn {
@@ -222,6 +284,11 @@ h1 {
   background: linear-gradient(135deg, var(--accent), var(--accent-alt));
   box-shadow: 0 2px 10px hsla(258,80%,50%,0.35);
   flex-shrink: 0;
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+.lap-btn:active {
+  transform: scale(0.88);
+  filter: brightness(1.25);
 }
 
 /* ── Runner Name Input ── */

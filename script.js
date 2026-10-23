@@ -6,14 +6,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const lapsSection = document.getElementById('lapsSection');
   const lapButtonsContainer = document.getElementById('lapButtons');
   const tagCountInput = document.getElementById('tagCount');
+  const targetLapsInput = document.getElementById('targetLaps');
 
   let intervalId = null;
   let elapsed = 0;
   let totalTags = 0;
+  let targetLaps = 12.5;
   const laps = {};
   const runnerNames = {};
 
   const STORAGE_KEY = 'lapCounterState';
+
+  /* ════════════════════════════════════════
+     HAPTIC FEEDBACK
+  ════════════════════════════════════════ */
+
+  const vibrate = (pattern = 45) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {}
+    }
+  };
 
   /* ════════════════════════════════════════
      CORE UTILITIES  (exported for testing)
@@ -27,14 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const formatTime = window._formatTime;
 
-  window._buildExportRows = function buildExportRows(lapsObj, total, namesObj = {}) {
+  window._buildExportRows = function buildExportRows(lapsObj, total, namesObj = {}, targetLapsVal = 12.5) {
     const maxLaps = total === 0 ? 0
       : Math.max(0, ...Array.from({ length: total }, (_, i) => (lapsObj[i + 1] || []).length));
-    const header = [
-      'Runner',
-      ...Array.from({ length: maxLaps }, (_, i) => `Lap ${i + 1}`),
-      'Total Time'
-    ];
+    const isHalf = (targetLapsVal % 1 !== 0);
+    const targetM = Math.round(targetLapsVal * 400);
+
+    const lapHeaders = Array.from({ length: maxLaps }, (_, i) => {
+      const idx = i + 1;
+      const meters = isHalf ? (200 + (idx - 1) * 400) : (idx * 400);
+      const isFinish = (meters === targetM);
+      return isFinish ? `${meters}m (Finish)` : `${meters}m`;
+    });
+
+    const header = ['Runner', ...lapHeaders, 'Total Time'];
     const rows = [header];
     for (let i = 1; i <= total; i++) {
       const rl = lapsObj[i] || [];
@@ -52,6 +72,25 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ════════════════════════════════════════
+     RACE DISTANCE & LAP HELPERS
+  ════════════════════════════════════════ */
+
+  const getCompletedLaps = (splitCount) => {
+    if (splitCount === 0) return 0;
+    if (targetLaps % 1 !== 0) {
+      return splitCount - 0.5;
+    }
+    return splitCount;
+  };
+
+  const getMaxSplits = () => {
+    if (targetLaps % 1 !== 0) {
+      return Math.ceil(targetLaps); // 12.5 laps requires 13 splits (200m + 12 full)
+    }
+    return targetLaps;
+  };
+
+  /* ════════════════════════════════════════
      PERSISTENCE — localStorage (silent)
   ════════════════════════════════════════ */
 
@@ -60,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         elapsed,
         totalTags,
+        targetLaps,
         laps: JSON.parse(JSON.stringify(laps)),
         names: JSON.parse(JSON.stringify(runnerNames)),
         savedAt: Date.now(),
@@ -72,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         elapsed: 0,
         totalTags,
+        targetLaps,
         laps: {},
         names: JSON.parse(JSON.stringify(runnerNames)),
         savedAt: Date.now(),
@@ -88,21 +129,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const stopAutoSave = () => clearInterval(autoSaveId);
 
   /* ════════════════════════════════════════
-     RENDER
+     RENDER & LAP BADGE LOGIC
   ════════════════════════════════════════ */
+
+  const updateLapBadge = (num) => {
+    const badge = document.getElementById(`lapBadge-${num}`);
+    const card = document.getElementById(`tagCard-${num}`);
+    const btn = document.getElementById(`lapBtn-${num}`);
+    const count = (laps[num] || []).length;
+    const completed = getCompletedLaps(count);
+    const maxSplits = getMaxSplits();
+
+    if (!badge) return;
+
+    badge.classList.remove('bell', 'finished');
+    if (card) card.classList.remove('is-bell', 'is-finished');
+
+    if (count >= maxSplits) {
+      badge.textContent = `🏁 ${completed}/${targetLaps}`;
+      badge.classList.add('finished');
+      if (card) card.classList.add('is-finished');
+      if (btn) btn.textContent = '🏁';
+    } else if (count === maxSplits - 1 && maxSplits > 1) {
+      badge.textContent = `🔔 ${completed}/${targetLaps}`;
+      badge.classList.add('bell');
+      if (card) card.classList.add('is-bell');
+      if (btn) btn.textContent = num;
+    } else {
+      badge.textContent = `${completed}/${targetLaps}`;
+      if (btn) btn.textContent = num;
+    }
+  };
 
   const renderLapList = (num) => {
     const listDiv = document.getElementById(`lapList-${num}`);
     const undoBtn = document.getElementById(`undoBtn-${num}`);
     if (!listDiv) return;
     listDiv.innerHTML = '';
+    const isHalf = (targetLaps % 1 !== 0);
+
     (laps[num] || []).forEach((time, idx) => {
       const span = document.createElement('span');
-      span.textContent = `#${idx + 1}  ${time}`;
+      const meters = isHalf ? (200 + idx * 400) : ((idx + 1) * 400);
+      span.textContent = `${meters}m  ${time}`;
       listDiv.appendChild(span);
     });
     listDiv.scrollTop = listDiv.scrollHeight;
     if (undoBtn) undoBtn.disabled = !(laps[num] && laps[num].length > 0);
+    updateLapBadge(num);
   };
 
   const createTagCard = (num) => {
@@ -110,12 +184,23 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapper.className = 'lap-item';
     wrapper.id = `tagCard-${num}`;
 
+    const badge = document.createElement('span');
+    badge.className = 'lap-badge';
+    badge.id = `lapBadge-${num}`;
+    badge.textContent = `0/${targetLaps}`;
+
     const btn = document.createElement('button');
     btn.className = 'btn lap-btn';
     btn.textContent = num;
     btn.id = `lapBtn-${num}`;
     btn.addEventListener('click', () => {
       if (!intervalId && elapsed === 0) return;
+      const count = (laps[num] || []).length;
+      if (count >= getMaxSplits()) {
+        vibrate([25, 30, 25]);
+        return; // Protected: athlete is finished
+      }
+      vibrate(45);
       if (!laps[num]) laps[num] = [];
       laps[num].push(formatTime(elapsed));
       renderLapList(num);
@@ -146,12 +231,14 @@ document.addEventListener('DOMContentLoaded', () => {
     undoBtn.disabled = true;
     undoBtn.addEventListener('click', () => {
       if (laps[num] && laps[num].length > 0) {
+        vibrate([30, 40, 30]);
         laps[num].pop();
         renderLapList(num);
         saveState();
       }
     });
 
+    wrapper.appendChild(badge);
     wrapper.appendChild(btn);
     wrapper.appendChild(nameInput);
     wrapper.appendChild(listDiv);
@@ -169,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addBtn.textContent = '+';
     addBtn.title = 'Add a runner';
     addBtn.addEventListener('click', () => {
+      vibrate(35);
       totalTags += 1;
       tagCountInput.value = totalTags;
       if (totalTags > parseInt(tagCountInput.max, 10)) {
@@ -189,6 +277,9 @@ document.addEventListener('DOMContentLoaded', () => {
     totalTags = count;
     for (let i = 1; i <= count; i++) {
       lapButtonsContainer.appendChild(createTagCard(i));
+      if (laps[i] && laps[i].length) {
+        renderLapList(i);
+      }
     }
     lapButtonsContainer.appendChild(buildAddCard());
   };
@@ -203,8 +294,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const startFresh = () => {
+    vibrate(60);
     const count = Math.max(1, parseInt(tagCountInput.value, 10) || 20);
     tagCountInput.value = count;
+
+    targetLaps = Math.max(0.5, parseFloat(targetLapsInput.value) || 12.5);
+    targetLapsInput.value = targetLaps;
 
     clearInterval(intervalId);
     intervalId = null;
@@ -218,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lapsSection.hidden = false;
 
     tagCountInput.disabled = true;
+    targetLapsInput.disabled = true;
     downloadBtn.classList.remove('show');
     stopBtn.hidden = false;
 
@@ -230,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const togglePause = () => {
+    vibrate(45);
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
@@ -250,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ════════════════════════════════════════ */
 
   const exportToExcel = () => {
-    const rows = window._buildExportRows(laps, totalTags, runnerNames);
+    const rows = window._buildExportRows(laps, totalTags, runnerNames, targetLaps);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = rows[0].map((_, ci) => ({
       wch: Math.max(...rows.map(r => String(r[ci] ?? '').length)) + 2,
@@ -269,8 +366,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.names) Object.assign(runnerNames, parsed.names);
+      if (parsed.targetLaps) {
+        targetLaps = parsed.targetLaps;
+        if (targetLapsInput) targetLapsInput.value = targetLaps;
+      }
     }
   } catch (e) {}
+
+  if (targetLapsInput) {
+    targetLaps = Math.max(0.5, parseFloat(targetLapsInput.value) || 12.5);
+  }
 
   const initialCount = Math.max(1, parseInt(tagCountInput.value, 10) || 20);
   createLapButtons(initialCount);
@@ -281,6 +386,17 @@ document.addEventListener('DOMContentLoaded', () => {
       createLapButtons(count);
     }
   });
+
+  if (targetLapsInput) {
+    targetLapsInput.addEventListener('input', () => {
+      targetLaps = Math.max(0.5, parseFloat(targetLapsInput.value) || 12.5);
+      for (let i = 1; i <= totalTags; i++) {
+        updateLapBadge(i);
+        renderLapList(i);
+      }
+      saveState();
+    });
+  }
 
   startBtn.addEventListener('click', startFresh);
   stopBtn.addEventListener('click', togglePause);
